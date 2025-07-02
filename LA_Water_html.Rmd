@@ -1,0 +1,393 @@
+---
+title: "LA_Water"
+author: "Elizabeth Arellano"
+date: "2025-06-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Install Packages}
+# install.packages("tidyverse")
+# install.packages("lubridate")
+# install.packages("dplyr")
+# install.packages("ggplot2")
+# install.packages("scales")
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(scales)
+```
+
+```{r Load dataset into DF, message=FALSE, warning=FALSE, include=FALSE}
+EBEW <- read_csv("Existing_Buildings_Energy___Water_Efficiency__EBEWE__Program_20250609.csv")
+```
+
+```{r Preivew the data}
+head(EBEW)
+colnames(EBEW)
+View(EBEW)
+```
+We will clean up the data. We first begin by transforming Total Water Use col from char to num. We do the same for CO2 Emissions as well. 
+We also create two new DFs, with each focusing on the 2024 program year and either Total water Use or Carbon Dioxide Emissions. In both, we filter out any NA values, and any negative values for TWU or CO2. 
+
+```{r Clean Data and Create Data Frames} 
+# Convert structure of column from char to num
+EBEW$`TOTAL WATER USE (kgal)` <- as.numeric(gsub(",", "", EBEW$`TOTAL WATER USE (kgal)`))
+EBEW$`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)` <- as.numeric(gsub(",", "", EBEW$`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`))
+# Create TWU data frame 
+EBEW_TWU <- EBEW %>% 
+  filter(!is.na(`TOTAL WATER USE (kgal)`),
+         `TOTAL WATER USE (kgal)` > 0,
+         `PROGRAM YEAR` == 2024)
+# Create CO2 data frame
+EBEW_CO <- EBEW %>% 
+  filter(!is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+         `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)` > 0,
+         `PROGRAM YEAR` == 2024) 
+# Create summary statistics for specific columns in two data frames. The summary function generates: minimum, 1st quartile (25th percentile), median (50th percentile), mean, 3rd quartile (75th percentile), maximum.
+Tab_CO <- summary(EBEW_CO$`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`)
+Tab_TWU <- summary(EBEW_TWU$`TOTAL WATER USE (kgal)`)
+
+# DF of Top Zip Codes with the highest Total Water Use in 2024
+TabZipTWU <- EBEW %>% 
+  filter(!is.na(`TOTAL WATER USE (kgal)`),!is.na(`POSTAL CODE`),
+         `PROGRAM YEAR` == 2024) %>% 
+  group_by(`POSTAL CODE`) %>% 
+  summarise(total_TWU = sum(`TOTAL WATER USE (kgal)`, na.rm=TRUE)) %>% 
+  arrange(desc(total_TWU)) %>% 
+  slice_head(n=3) 
+
+# DF of Top Zip Codes with the highest Carbon Emissions in 2024
+TabZipCO<- EBEW %>% 
+  filter(!is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+         !is.na(`POSTAL CODE`), 
+         `PROGRAM YEAR` == 2024) %>% 
+  group_by(`POSTAL CODE`) %>% 
+  summarise(total_CO = sum(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`, na.rm=TRUE)) %>% 
+  arrange(desc(total_CO)) %>% 
+  slice_head(n=3)
+```
+
+A note: TWU is an abbreviation for total water use (kgal).  
+Create box plots for CO2 Emissions and TWU in 2024. Create bar graphs to see which zip codes has the most amount of TWU and Co2 Emissions in 2024. 
+```{r Graphs1}
+# Create box plot for Carbon Dioxide Emissions in 2024
+G_co2_BP <- ggplot(EBEW_CO, aes(y=`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`))+
+  geom_boxplot(fill="orange")+
+  scale_y_log10(labels = label_comma())+
+  labs(title="Boxplot of CO2 Emissions in 2024",
+       y = "Metric Tons CO2e")+
+  theme_minimal()
+# Create box plot for Total Water Use in 2024
+G_TWU_BP <- ggplot(EBEW_TWU, aes(y=`TOTAL WATER USE (kgal)`))+
+  geom_boxplot(fill="skyblue")+
+  scale_y_log10(labels = label_comma()) +
+  labs(title="Boxplot of CO2 Emissions in 2024",
+       y = "Water Use kgal")+
+  theme_minimal()
+# Create bar graph for Total Water Use by Zip Codes
+G_TWU_ZipCode <- ggplot(TabZipTWU, aes(x = reorder(`POSTAL CODE`, -total_TWU), y = total_TWU)) +
+  geom_col(fill = "skyblue") +
+  labs(title = "Top 3 Postal Codes by Total Water Use in 2024",
+       x = "Postal Code",
+       y = "Total Water Use (kgal)") +
+  theme_minimal()
+# Create bar graph for CO2 Emissions by Zip Codes
+G_CO_ZipCode <-ggplot(TabZipCO,aes(x = reorder(`POSTAL CODE`, -total_CO), y = total_CO)) +
+  geom_col(fill = "orange") +
+  labs(title = "Top 3 Postal Codes by Total CO Use in 2024",
+       x = "Postal Code",
+       y = "Total CO  Use ") +
+  theme_minimal()
+```
+
+Create several data frames while also filtering out NA values. For some, we will filter out data from years other than the year 2024. 
+
+```{r}
+# Create DF of several variables
+EBEW_FILT <- EBEW %>%
+  select(`YEAR BUILT`,`TOTAL WATER USE (kgal)`,`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`) %>% 
+  filter(
+    !is.na(`YEAR BUILT`),
+    !is.na(`TOTAL WATER USE (kgal)`),
+    !is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+  ) 
+# Create DF of several vars with more specific filters to show better insights
+EBEW_FILT <- EBEW %>%
+  select(`YEAR BUILT`,`TOTAL WATER USE (kgal)`,`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`,`PROGRAM YEAR`) %>% 
+  filter(
+    `PROGRAM YEAR` == 2024,
+    !is.na(`YEAR BUILT`),
+    !is.na(`TOTAL WATER USE (kgal)`),
+    !is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+    `YEAR BUILT` >= 1800, #there was a building built in 1190, removed that data because its prob wrong
+    `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)` < 65000, # remove extreme outliers
+    `TOTAL WATER USE (kgal)`< 1000000
+    )
+# The data for CO2 emissions has too many large outliers, so I need to exclude them. I will do so by Computing thresholds for outliers of CO emissions, then filtering CO2 emissions that are larger than the threshold I computed.  
+thresh_CO2 <- quantile(EBEW_FILT$`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`, probs = 0.99, na.rm = TRUE)
+EBEW_FILT <- EBEW %>%
+  select(`YEAR BUILT`,`TOTAL WATER USE (kgal)`,`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`) %>% 
+  filter(
+    !is.na(`YEAR BUILT`),
+    !is.na(`TOTAL WATER USE (kgal)`),
+    !is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+    `YEAR BUILT` >= 1800, #there was a building built in 1190, removed that data because its probably wrong
+    `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)` <= thresh_CO2, # remove extreme outlier
+    `TOTAL WATER USE (kgal)`< 1000000) 
+# Rather than use thresholds I computed before, I used a number to exclude the biggest outliers to better focus on the majority of the data. I did not use thresholds because it excluded too much of the data. 
+EBEW_FILT <- EBEW %>%
+  select(`YEAR BUILT`,`TOTAL WATER USE (kgal)`,`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`) %>% 
+  filter(
+    !is.na(`YEAR BUILT`),
+    !is.na(`TOTAL WATER USE (kgal)`),
+    !is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+    `YEAR BUILT` >= 1800, #there was a building built in 1190, removed that data because its probably wrong
+    `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)` < 65000, # remove extreme outlier
+    `TOTAL WATER USE (kgal)`< 1000000) 
+EBEW_FILT$`YEAR BUILT` <- as.numeric(EBEW_FILT$`YEAR BUILT`)
+EBEW_FILT <- EBEW_FILT %>% 
+  mutate(yr_built = cut(`YEAR BUILT`,
+                        breaks = seq(1875, 2025, by = 25),
+                        right = FALSE,
+                        labels = paste(seq(1875, 2025 - 25, by = 25), 
+                                       seq(1875 + 24, 2025 - 1, by = 25), 
+                                       sep = "-")))
+
+```
+
+This code creates 4 visualizations that explore how building age, year built, relates to CO2 emissions and total water use in 2024:
+Two scatter plots show the raw relationship between year built and each outcome (TWU and CO2 emissions).
+Two box plots use grouped yr_built (by decade) to show the distribution of emissions and water use across different building age ranges, helping identify patterns or outliers. 
+
+```{r Graphs2}
+# 
+G_CO_YrBuilt <- ggplot(EBEW_FILT, aes(x=`YEAR BUILT`,y=`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`))+
+  geom_point(alpha = 0.4, color="orange")+ #alpha fcn reduces over plotting. each point becomes 40% more opaque
+  labs(
+    title = "Relation between Building Age and CO2 Emissions in 2024",
+    x = "Year Built",
+    y = "CO2 Emissions (Metric Tons)")+
+  theme_minimal()
+# graph for year built vs water use: 
+G_TWU_YrBuilt <- ggplot(EBEW_FILT, aes(x=`YEAR BUILT`,y=`TOTAL WATER USE (kgal)`))+
+  geom_point(alpha = 0.5,color="skyblue")+
+  labs(
+    title = "Relation between Year Built and Total Water Use in 2024",
+    x = "Year Built",
+    y = "Total Water Use (kgal)") +
+  theme_minimal()
+# 
+G_CO_YrBuilt_BP <-ggplot(EBEW_FILT,aes(x=yr_built,y=`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`))+
+  geom_boxplot(fill="orange")+
+  labs(title="CO2 Emissions by Year Built",
+       x = "Decade Built",
+       y = "CO2 Emissions")+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+G_TWU_YrBuilt_BP <- ggplot(EBEW_FILT,aes(x=yr_built,y=`TOTAL WATER USE (kgal)`))+
+  geom_boxplot(fill="skyblue")+
+  labs(title="Total Water Use by Year Built",
+       x = "Decade Built",
+       y = "Total Water Use (kgal)")+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+I now want to see longitudinal change over time; how do emissions or water use change as buildings age? 
+
+```{r}
+# Create DF of several cols, filter out NA values and filter out outliers for both CO2 emissions and TWU
+EBEW_long <- EBEW %>% 
+  select(`PROGRAM YEAR`,`YEAR BUILT`, `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`,`TOTAL WATER USE (kgal)`) %>% 
+  filter(
+    !is.na(`YEAR BUILT`),
+    !is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+    !is.na(`TOTAL WATER USE (kgal)`),
+    `YEAR BUILT` >= 1800,
+    `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)` < 6500, 
+    `TOTAL WATER USE (kgal)` < 1000000)
+# Create column with the function mutate. This column is the building age, where we subtract the year the building was built from the program year = the age of when the data was collected. 
+EBEW_long <- EBEW_long %>%
+  mutate(Building_Age = `PROGRAM YEAR` - `YEAR BUILT`)  # How old building was when data was collected
+```
+
+Group buildings by age and calculate average CO2 emissions per program year. The graphs below visualize trends over time using a color coded line plot. It compares how emissions differ by building age group across years. There is a graph for both total water usage and CO2 emissions. 
+
+```{r Graphs3}
+G_C02_AGE <- EBEW_long %>% 
+  mutate(age_group = cut(Building_Age,
+                         breaks = c(0, 25, 50, 75, 100, Inf),
+                         labels = c("0–25 yrs", "26–50 yrs", "51–75 yrs", "76–100 yrs", "100+ yrs"),
+                         right = FALSE)) %>%
+  group_by(`PROGRAM YEAR`, age_group) %>% 
+  summarise(mean_CO2 = mean(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`, na.rm = TRUE)) %>%
+  ggplot(aes(x = `PROGRAM YEAR`, y = mean_CO2, color = age_group)) +
+  geom_line(linewidth = 1.2) +
+  labs(title = "Mean CO2 Emissions by Building Age Group Over Time",
+       x = "Program Year", y = "Mean CO₂ Emissions (Metric Tons CO₂e)",
+       color = "Building Age") +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal()
+# a note: program collection started at 2016, so that's why the graph begins at 2016.
+# replicate for Total Water Use
+G_TWU_age <- EBEW_long %>% 
+  mutate(age_group = cut(Building_Age,
+                         breaks = c(0, 25, 50, 75, 100, Inf),
+                         labels = c("0–25 yrs", "26–50 yrs", "51–75 yrs", "76–100 yrs", "100+ yrs"),
+                         right = FALSE)) %>%
+  group_by(`PROGRAM YEAR`, age_group) %>% 
+  summarise(mean_TWU = mean(`TOTAL WATER USE (kgal)`, na.rm = TRUE)) %>%
+  ggplot(aes(x = `PROGRAM YEAR`, y = mean_TWU, color = age_group)) +
+  geom_line(linewidth = 1.2) +
+  labs(title = "Mean Total Water Use By Building Age Group Over Time",
+       x = "Program Year", y = "Mean CO₂ Emissions (Metric Tons CO₂e)",
+       color = "Building Age") +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal()
+```
+
+The code filters the EBEW data set to focus on non-compliant properties, those who do not comply with reporting requirements and have complete data. It then analyzes 2024 records, summarizing total CO2 emissions and water use by property type. It finally identifies the top 5 non-compliant property types for CO2 emissions and top 3 for water use. 
+
+```{r}
+# I want to do noncompliance vs building type, create data frame to focus on these variables
+# can also include gross building floor area OR occupancy vs compliance 
+EBEW_COMP <- EBEW %>%
+  select(`PROGRAM YEAR`,`BUILDING ADDRESS`,`PROPERTY TYPE`,`COMPLIANCE STATUS`,`GROSS BUILDING FLOOR AREA (ft²)`,OCCUPANCY,`TOTAL WATER USE (kgal)`,`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`) %>% 
+  filter(
+    !is.na(`COMPLIANCE STATUS`),
+    !is.na(`GROSS BUILDING FLOOR AREA (ft²)`),
+    !is.na(OCCUPANCY),
+    !is.na(`TOTAL WATER USE (kgal)`),
+    !is.na(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+    !is.na(`PROPERTY TYPE`),
+    !is.na(`BUILDING ADDRESS`),
+    `COMPLIANCE STATUS` == "NOT COMPLIED") 
+EBEW_COMPSUM <- EBEW_COMP %>% 
+  filter( 
+    `PROGRAM YEAR` == 2024) %>% 
+  group_by(`PROPERTY TYPE`) %>% 
+  summarise(
+    totalCO2 = sum(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+    totalTWU = sum(`TOTAL WATER USE (kgal)`)) %>% 
+  arrange(desc(totalCO2)) 
+top5_CO_polluters <- EBEW_COMPSUM %>% 
+  arrange(desc(totalCO2)) %>%
+  slice_head(n=5)
+top3_TWU_polluters <- EBEW_COMPSUM %>% 
+  arrange(desc(totalTWU)) %>%
+  slice_head(n=3)
+```
+
+The following bar charts visualize the top non-compliant property types on 2024, one ranked by CO2 emissions and the other by total water use. This is done with color coded bars.
+
+```{r Graphs4}
+# graph for property types vs CO2 emitted
+G_CO_PropType <- ggplot(top5_CO_polluters, aes(x =reorder(`PROPERTY TYPE`,-totalCO2),
+                              y = totalCO2)) +
+  geom_col(fill = "orange") +
+  labs(title = "Top 5 Non-Compliant Property Types by CO₂ Emission in 2024",
+       x = "Property Type",
+       y = "Total CO2 Emissions (Metric Tons)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# graph for property types vs water use
+G_TWU_PropType <- ggplot(top3_TWU_polluters, aes(x =reorder(`PROPERTY TYPE`,-totalTWU),y = totalTWU)) +
+  geom_col(fill = "skyblue") +
+  labs(title = "Top 3 Non-Compliant Property Types by CO₂ Emissionsin 2024",
+       x = "Property Type",
+       y = "TOTAL WATER USE (kgal)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+This code analyzes how non-compliance rates have changed over the years by calculating, for each program year, the total number of buildings, the number that did not comply, and the resulting non-compliance rate. It then filters the data to focus only on the "not complied" status for trend analysis. 
+
+```{r}
+# how has compliance shifted over the years?
+compliance_trend <- EBEW %>% 
+  select(`PROGRAM YEAR`, `COMPLIANCE STATUS`) %>% 
+  filter( 
+    !is.na(`COMPLIANCE STATUS`),
+    !is.na(`PROGRAM YEAR`)) %>% 
+  group_by(`PROGRAM YEAR`, `COMPLIANCE STATUS`) %>% 
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(`PROGRAM YEAR`) %>% 
+  mutate(
+    total_buildings = sum(count),
+    non_comp_count = sum(count[`COMPLIANCE STATUS` == "NOT COMPLIED"]),
+    non_comp_rate = non_comp_count / total_buildings
+  ) %>% 
+  ungroup() %>% 
+  filter(`COMPLIANCE STATUS` == "NOT COMPLIED")
+```
+
+This code creates two line plots showing trends in building non-compliance over time: one plots shows percentage of non-compliant buildings each year. The other plot shows the raw number of non-compliant buildings. 
+They help visualize both relative and absolute ranges. 
+
+```{r Graphs5}
+#  normalizes the count of non-compliant buildings by the total buildings that year
+G_CompliancyYrs <- ggplot(compliance_trend, aes(x = `PROGRAM YEAR`, y = non_comp_rate)) +
+  geom_line(size = 1.2, color = "firebrick") +
+  geom_point(color = "firebrick") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Non-Compliant Buildings Over Time",
+    x = "Program Year",
+    y = "Non-Compliance Rate"
+  ) +
+  theme_minimal() 
+# raw counts instead (not percentages)
+G_CompliancyYrs2 <- ggplot(compliance_trend, aes(x = `PROGRAM YEAR`, y = non_comp_count)) +
+  geom_line(size = 1.2, color = "pink")+
+  geom_point(color = "pink")+
+  labs(
+    title = "Non-Compliant Buildings Over Time",
+    x = "Program Year",
+    y = "Non-Compliance Raw Numbers"
+  ) +
+  theme_minimal()
+```
+
+The code filters the 2024 non-compliant buildings data set to keep only unique building addresses, then identifies the top 3 buildings with the highest CO2 emissions and the top 3 with the highest water use for that year. 
+
+```{r}
+# Which building pollutes the most? Get address
+EBEW_AD<- EBEW_COMP %>% 
+  distinct(`BUILDING ADDRESS`, .keep_all = TRUE) %>% 
+  filter( 
+    `PROGRAM YEAR` == 2024) 
+top3_CO2_AD<- EBEW_AD %>% 
+  arrange(desc(`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`)) %>% 
+  slice_head(n = 3)
+top3_TWU_AD<- EBEW_AD %>% 
+  arrange(desc(`TOTAL WATER USE (kgal)`)) %>% 
+  slice_head(n = 3)
+``` 
+
+This code creates two bar charts, highlighting the top 3 individual buildings in 2024 with the highest total water use and highest CO2 emissions, displaying building addresses on the x-axis with angled labels for readability. 
+
+```{r Graphs6 }
+# graph for top 3 addresses: water use
+G_TWU_Top3_AD <- ggplot(top3_TWU_AD, aes(x = reorder(`BUILDING ADDRESS`, -`TOTAL WATER USE (kgal)`), 
+                     y = `TOTAL WATER USE (kgal)`)) +
+  geom_col(fill = "skyblue") +
+  labs(title = "Top 3 Buildings by Water Use in 2024",
+       x = "Building Address",
+       y = "Total Water Use (kgal)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# graph for top 3 addresses:CO2 emissions
+G_CO_Top3_AD <- ggplot(top3_CO2_AD, aes(x = reorder(`BUILDING ADDRESS`, -`CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`),
+                        y = `CARBON DIOXIDE EMISSIONS (Metric Ton CO2e)`)) +
+  geom_col(fill = "orange") +
+  labs(title = "Top 3 Buildings by CO2 Emissions in 2024",
+       x = "Building Adresses",
+       y = "Carbon Dioxide Emissions") + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
